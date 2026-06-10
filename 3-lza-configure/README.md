@@ -6,7 +6,7 @@ Translate the signed-off plan into LZA configuration YAML. **Start from the offi
 baseline** (LZA Universal Configuration), then customize each file.
 
 - **Invoke:** after `/lza-plan` and `/lza-bootstrap` are complete.
-- **Predecessor:** [`/lza-bootstrap`](../lza-bootstrap/) · **Successor:** [`/lza-deploy`](../lza-deploy/)
+- **Predecessor:** [`/lza-bootstrap`](../2-lza-bootstrap/) · **Successor:** [`/lza-deploy`](../4-lza-deploy/)
 
 ### What it covers
 **Step 0 — seed the config repo from the AWS baseline** (`intake/fetch_baseline.sh`), then a

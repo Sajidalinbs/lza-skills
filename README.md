@@ -27,15 +27,15 @@ This repo is **safe to publish** — it contains playbooks and generic tooling o
 
 ## The skills
 
-| Skill | When to invoke | What it covers |
-|---|---|---|
-| [`lza-plan`](lza-plan/SKILL.md) | Start of a new engagement | 8 opinionated decisions: prefix, regions, OU/account design, **proposed default network (VPCs+subnets+CIDRs)**, SSO, compliance, tagging |
-| [`lza-bootstrap`](lza-bootstrap/SKILL.md) | First-time AWS Org setup | Mgmt-account checks, Organizations trusted-services audit, break-glass, quotas, Control Tower decision, IAM Identity Center, **GitHub CodeConnections + token prerequisites**, installer CloudFormation |
-| [`lza-configure`](lza-configure/SKILL.md) | Filling the config | **Start from the AWS baseline**, then customize every YAML (replacements, accounts, organization, global, security, network, iam, customizations) with per-file pitfalls |
-| [`lza-deploy`](lza-deploy/SKILL.md) | Running the pipeline | Stage map, timings, stuck-vs-failing, restart/recovery, cost-during-deploy |
-| [`lza-validate`](lza-validate/SKILL.md) | After a green run | CT health, SCP/tag/backup audit, security delegated-admin, network, central logging, **hands-on connectivity tests** |
-| [`lza-add-account`](lza-add-account/SKILL.md) | Day-2: new workload account | accounts/network edits, SCP propagation, quarantine release, gotchas |
-| [`lza-troubleshoot`](lza-troubleshoot/SKILL.md) | Pipeline failed | 3-API diagnostic flow, Symptom→Cause→Fix table, **bundled fix scripts** |
+| # | Skill | When to invoke | What it covers |
+|---|---|---|---|
+| 1 | [`lza-plan`](1-lza-plan/SKILL.md) | Start of a new engagement | 8 opinionated decisions: prefix, regions, OU/account design, **proposed default network (VPCs+subnets+CIDRs)**, SSO, compliance, tagging |
+| 2 | [`lza-bootstrap`](2-lza-bootstrap/SKILL.md) | First-time AWS Org setup | Mgmt-account checks, Organizations trusted-services audit, break-glass, quotas, Control Tower decision, IAM Identity Center, **GitHub CodeConnections + token prerequisites**, installer CloudFormation |
+| 3 | [`lza-configure`](3-lza-configure/SKILL.md) | Filling the config | **Start from the AWS baseline**, then customize every YAML (replacements, accounts, organization, global, security, network, iam, customizations) with per-file pitfalls |
+| 4 | [`lza-deploy`](4-lza-deploy/SKILL.md) | Running the pipeline | Stage map, timings, stuck-vs-failing, restart/recovery, cost-during-deploy |
+| 5 | [`lza-validate`](5-lza-validate/SKILL.md) | After a green run | CT health, SCP/tag/backup audit, security delegated-admin, network, central logging, **hands-on connectivity tests** |
+| 6 | [`lza-add-account`](6-lza-add-account/SKILL.md) | Day-2: new workload account | accounts/network edits, SCP propagation, quarantine release, gotchas |
+| 7 | [`lza-troubleshoot`](7-lza-troubleshoot/SKILL.md) | Pipeline failed (cross-cutting, anytime) | 3-API diagnostic flow, Symptom→Cause→Fix table, **bundled fix scripts** |
 
 Each skill folder has a short `README.md` (for GitHub browsing) and the authoritative
 **`SKILL.md`** (the full playbook Claude Code loads).
@@ -92,8 +92,10 @@ Claude Code loads skills from `~/.claude/skills/<name>/SKILL.md` (global) or
 
 ```bash
 mkdir -p ~/.claude/skills
-for s in lza-plan lza-bootstrap lza-configure lza-deploy lza-validate lza-add-account lza-troubleshoot; do
-  ln -snf "$PWD/$s" "$HOME/.claude/skills/$s"
+# folders are numbered for flow order (1-lza-plan …); symlink them under clean
+# names so invocation stays /lza-plan, /lza-bootstrap, etc.
+for d in [1-9]-lza-*; do
+  ln -snf "$PWD/$d" "$HOME/.claude/skills/${d#*-}"
 done
 ls -la ~/.claude/skills/ | grep lza-     # verify
 ```
@@ -121,7 +123,7 @@ for a **Git/CodeConnections** config workflow. See `/lza-configure` for details.
 This skill set is **static markdown + scripts** — it does not auto-update with new LZA releases.
 The reference version is recorded at the top of this file and in each `SKILL.md`. When AWS changes
 defaults, refresh the affected content. For new field failure modes, add them to
-[`lza-troubleshoot/SKILL.md`](lza-troubleshoot/SKILL.md) under "Symptom → Root cause → Fix".
+[`lza-troubleshoot/SKILL.md`](7-lza-troubleshoot/SKILL.md) under "Symptom → Root cause → Fix".
 
 ---
 

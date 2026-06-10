@@ -6,8 +6,8 @@ Day-2 operation: add a new workload account to an already-deployed, healthy LZA 
 breaking it.
 
 - **Invoke:** once per new workload account.
-- **Predecessor:** [`/lza-validate`](../lza-validate/) (have a healthy LZA first) ·
-  **Related:** [`/lza-troubleshoot`](../lza-troubleshoot/)
+- **Predecessor:** [`/lza-validate`](../5-lza-validate/) (have a healthy LZA first) ·
+  **Related:** [`/lza-troubleshoot`](../7-lza-troubleshoot/)
 
 ### What it covers
 Pre-add planning (OU, email, CIDR from the reserved range, TGW sharing) · config edits to

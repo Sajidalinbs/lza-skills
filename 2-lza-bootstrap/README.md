@@ -6,7 +6,7 @@ Prepare the AWS Organization and install the accelerator, after `/lza-plan` is s
 Leaves you with a running (config-empty) `AWSAccelerator-Pipeline`, ready for `/lza-configure`.
 
 - **Invoke:** once per AWS Organization, before any real config is deployed.
-- **Predecessor:** [`/lza-plan`](../lza-plan/) · **Successor:** [`/lza-configure`](../lza-configure/)
+- **Predecessor:** [`/lza-plan`](../1-lza-plan/) · **Successor:** [`/lza-configure`](../3-lza-configure/)
 
 ### What it covers
 Management-account verification · Organizations trusted-services audit (the IDC-takeover trap) ·

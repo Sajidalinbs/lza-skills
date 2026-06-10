@@ -6,7 +6,7 @@ Prove a green pipeline actually produced a healthy landing zone. "Pipeline went 
 "deployment is correct."
 
 - **Invoke:** immediately after the pipeline reaches Finalize, and on a cadence (weekly/monthly).
-- **Predecessor:** [`/lza-deploy`](../lza-deploy/) · **Successor:** [`/lza-add-account`](../lza-add-account/) (day-2)
+- **Predecessor:** [`/lza-deploy`](../4-lza-deploy/) · **Successor:** [`/lza-add-account`](../6-lza-add-account/) (day-2)
 
 ### What it covers
 Control Tower health & drift · SCP/RCP/tag/backup attachment audit · security-services

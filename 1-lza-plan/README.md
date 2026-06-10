@@ -7,7 +7,7 @@ questions *before* any YAML is written, and produces `<customer>-lza-plan.md` �
 source of truth for every downstream skill.
 
 - **Invoke:** once per new customer, at the very start.
-- **Predecessor:** none (this is where you start) · **Successor:** [`/lza-bootstrap`](../lza-bootstrap/)
+- **Predecessor:** none (this is where you start) · **Successor:** [`/lza-bootstrap`](../2-lza-bootstrap/)
 
 ### The 8 decisions (opinionated — propose a default, customer confirms)
 1. AcceleratorPrefix · 2. Region strategy · 3. OU structure · 4. Account inventory ·
