@@ -1,7 +1,10 @@
 # =============================================================================
 #  LZA OPINIONATED DEFAULT — the network we PROPOSE to a customer.
 #  Engineer edits only TWO things, then runs the planner:
-#    1) every  *@example.com  email  (real, globally-unique inboxes)
+#    1) every  *@example.com  email  (real, globally-unique inboxes). NOTE:
+#       the MANAGEMENT account email = the EXISTING root email of the account you
+#       run LZA from — ASK for it; do NOT use the aws-managers+management alias.
+#       All OTHER accounts are created fresh, so the +<account> alias is fine.
 #    2) the  external_cidrs  list     (the customer's on-prem / VPN / DX ranges)
 #  Then:  python3 plan_subnets.py requirements.default.yaml
 #  If the planner reports NO overlap, the customer approves the review Excel and
@@ -23,7 +26,7 @@ external_cidrs:
 
 # ---- Accounts (AWS Universal Config baseline names) -------------------------
 accounts:
-  - { name: Management,     alias: management,     ou: Root,           email: aws-managers+management@example.com, type: Mandatory, description: Org management }
+  - { name: Management,     alias: management,     ou: Root,           email: REPLACE-with-existing-mgmt-root@example.com, type: Mandatory, description: Org management - use the account's EXISTING root email }
   - { name: LogArchive,     alias: logarchive,     ou: Security,       email: aws-managers+log@example.com,        type: Mandatory, description: Central log archive }
   - { name: Audit,          alias: audit,          ou: Security,       email: aws-managers+audit@example.com,      type: Mandatory, description: Security delegated admin }
   - { name: Network,        alias: network,        ou: Infrastructure, email: aws-managers+network@example.com,    type: Workload,  description: TGW / inspection (no DNS or central-endpoints VPC) }

@@ -41,6 +41,23 @@ Don't move to the next decision until the current one is answered and recorded.
 
 When all 8 are recorded, write the planning document to `<customer>-lza-plan.md` in the customer's repo root.
 
+### Setup — auto-provision the intake tooling (run this FIRST, automatically)
+
+Decision 5 (network) runs the Python tooling that ships with these skills in the **`intake/`** folder. When you work in a **separate customer/demo folder** it isn't there. **As your very first action when this skill is invoked, run the snippet below** to copy it in automatically — it's idempotent (does nothing if `intake/` already exists) and self-resolves the source from the installed skill's location:
+
+```bash
+if [ ! -d ./intake ]; then
+  src="$(dirname "$(readlink ~/.claude/skills/lza-plan 2>/dev/null || echo ~/.claude/skills/lza-plan)")/intake"
+  if [ -d "$src" ]; then
+    cp -R "$src" ./intake && echo "✓ provisioned intake/ from $src"
+  else
+    echo "⚠ intake/ not found near the skill — ask the user for the lza-skills repo path, then: cp -R <repo>/intake ./intake"
+  fi
+fi
+```
+
+This makes the engagement self-contained (plan + the tooling that generated it travel together). The planner then runs as `python3 intake/plan_subnets.py requirements.<customer>.yaml`. Prereqs: `python3`, `openpyxl`, `pyyaml`. If the snippet can't locate the source (skill installed by copy, not symlink), ask the user for the lza-skills repo path and copy from there before reaching Decision 5.
+
 ---
 
 ## Decision 1 — `AcceleratorPrefix`
@@ -166,18 +183,29 @@ OU tree:
 **Customer workload accounts:**
 - one per environment per app team, or one per BU per environment, depending on OU structure
 
+### Emails — ASK, don't assume ⚠️
+
+Account emails are irreversible (globally unique, never reusable), so collect them deliberately:
+
+1. **Management account email — ASK FOR IT EXPLICITLY.** The management account almost always **already exists** (it's the account you run LZA from), so it has a **specific, pre-existing root email that you cannot guess**. Never assume `aws-managers+management@<domain>` for it. Ask the customer: *"What is the existing root email of your AWS management account?"* and record exactly what they give you.
+2. **Alias base for the other (to-be-created) accounts — confirm the pattern, then derive.** LogArchive, Audit, Network, SharedServices, Perimeter, and the workload accounts are created fresh, so they use the plus-alias convention. Ask: *"For the new accounts, can we use `aws-managers+<account>@<domain>` (e.g. `aws-managers+log@<domain>`)? Confirm this base inbox exists and accepts plus-addressed mail."* Then derive each as `aws-managers+<account>@<domain>`.
+3. **Confirm plus-addressing works** — some corporate mail systems silently drop `+` tags. If so, the customer must supply a distinct real inbox per account instead.
+
+So: **one explicit answer for Management**, **one confirmed base+pattern for everything else**. Do not fill the Management email from the pattern.
+
 **Questions to ask:**
-- How many workload accounts at launch? Names? Emails? OUs?
+- **What is the existing management account root email?** (explicit — do not assume)
+- Alias base + does plus-addressing work? (`aws-managers+<account>@<domain>`)
+- How many workload accounts at launch? Names? OUs?
 - Does the customer have existing AWS accounts to bring into the org? (use `invite-account-to-organization`, not `create-account`)
 - Is there an emergency / break-glass account requirement? (SEC03-BP03 recommends one)
-- Account email format: `aws-managers+<purpose>@<customer-domain>` is the convention — confirm the customer has this alias set up
 
 **Account creation rate limit:** AWS Organizations limits account creation to ~10/hour. If creating 15+ accounts at first deploy, the pipeline may stall — plan a two-pass deployment if needed.
 
 **Record:**
 ```
 Accounts:
-  - Management   | Root            | aws-managers+management@<domain>
+  - Management   | Root            | <EXISTING root email — ASK; do NOT derive from pattern>
   - LogArchive   | Security        | aws-managers+log@<domain>
   - Audit        | Security        | aws-managers+audit@<domain>
   - Network      | Infrastructure  | aws-managers+network@<domain>
@@ -186,6 +214,8 @@ Accounts:
   - <customer>-prd | Workloads/Prod | aws-managers+prd@<domain>
   - <customer>-dev | Workloads/Dev  | aws-managers+dev@<domain>
   - ...
+Alias base: aws-managers+<account>@<domain>   (for CREATED accounts only)
+Plus-addressing confirmed working: yes/no
 ```
 
 ---

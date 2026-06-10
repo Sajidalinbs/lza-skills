@@ -25,7 +25,7 @@ external_cidrs:
 # Names align with modules/base/default so the intake output merges cleanly with
 # the baseline. type: Mandatory -> mandatoryAccounts; everything else -> workloadAccounts.
 accounts:
-  - { name: Management,     alias: management,     ou: Root,           email: aws-managers+management@acme.com, type: Mandatory, description: Org management }
+  - { name: Management,     alias: management,     ou: Root,           email: REPLACE-with-existing-mgmt-root@acme.com, type: Mandatory, description: Org management - use the account's EXISTING root email (ASK; not an alias) }
   - { name: LogArchive,     alias: logarchive,     ou: Security,       email: aws-managers+log@acme.com,        type: Mandatory, description: Central log archive }
   - { name: Audit,          alias: audit,          ou: Security,       email: aws-managers+audit@acme.com,      type: Mandatory, description: Security delegated admin }
   - { name: Network,        alias: network,        ou: Infrastructure, email: aws-managers+network@acme.com,    type: Workload,  description: TGW / ingress / egress / inspection (no DNS or central-endpoints VPC) }
