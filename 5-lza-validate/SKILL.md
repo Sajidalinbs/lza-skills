@@ -21,6 +21,26 @@ Run the read-only audits first (Control Tower → policies → security → netw
 
 ---
 
+## Step 0 — AWS credential preflight (before any AWS command)
+
+This skill runs the AWS CLI against the **management account** (and assumes into **Audit**) in the **HomeRegion**. Wrong account/region or an expired SSO session is the #1 source of confusing "missing resource" results — verify first:
+
+```bash
+aws sts get-caller-identity     # Account + ARN — who am I?
+aws configure list              # active profile + region
+```
+
+Confirm against `<customer>-lza-plan.md`: **Account == Management account**, **Region == HomeRegion**.
+
+```bash
+aws sso login --profile <customer>-mgmt
+export AWS_PROFILE=<customer>-mgmt AWS_REGION=<HomeRegion>
+```
+
+Validation is read-only — **use a ReadOnlyAccess-style profile so a validation pass can't change anything** (safest). Never store creds in the repo; prefer temporary SSO credentials.
+
+---
+
 ## 1 — Control Tower health
 
 ```bash

@@ -53,6 +53,26 @@ Do not start until:
 
 If the plan isn't signed off, **stop and return to `/lza-plan`.** Relitigating Decision 1 (prefix) after the installer's first run is effectively a teardown.
 
+### AWS credential preflight (before any AWS command)
+
+Every step below runs the AWS CLI against the **management account** in the **HomeRegion**. Wrong account/region or an expired SSO session is the #1 source of confusing failures — verify first:
+
+```bash
+aws sts get-caller-identity     # Account + ARN — who am I?
+aws configure list              # active profile + region
+```
+
+Confirm against `<customer>-lza-plan.md`: **Account == Management account**, **Region == HomeRegion**.
+
+Set credentials up yourself — **never store creds in the repo, prefer temporary SSO credentials over long-lived keys:**
+```bash
+aws configure sso --profile <customer>-mgmt    # one-time
+aws sso login --profile <customer>-mgmt
+export AWS_PROFILE=<customer>-mgmt AWS_REGION=<HomeRegion>
+```
+
+Bootstrap needs **admin in the management account** (it creates the org baseline, Control Tower, and the installer). If identity/region is wrong, fix it before Step 1.
+
 ---
 
 ## Step 1 — Management account verification

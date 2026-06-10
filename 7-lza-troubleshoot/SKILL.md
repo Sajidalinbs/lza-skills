@@ -23,6 +23,26 @@ LZA error messages are notoriously generic. The pipeline failure log often shows
 
 ---
 
+## Step 0 — AWS credential preflight (before any AWS command)
+
+Every diagnostic and fix below runs the AWS CLI against the **management account** in the **HomeRegion**. Diagnosing the wrong account/region (or hitting an expired SSO session mid-fix) wastes time and can mask the real cause — verify first:
+
+```bash
+aws sts get-caller-identity     # Account + ARN — who am I?
+aws configure list              # active profile + region
+```
+
+Confirm against `<customer>-lza-plan.md`: **Account == Management account**, **Region == HomeRegion**.
+
+```bash
+aws sso login --profile <customer>-mgmt
+export AWS_PROFILE=<customer>-mgmt AWS_REGION=<HomeRegion>
+```
+
+Troubleshooting needs **scoped admin in the management account** for the SCP/IAM fixes; some scripts (e.g. `delete_orphan_ct_role.sh`) assume from the management account **into a member account** via the `AWSControlTowerExecution` role — so the active identity must be allowed to assume it. Never store creds in the repo; prefer temporary SSO credentials.
+
+---
+
 ## The 3-API diagnostic flow
 
 For any Control-Tower-related failure, these three calls almost always surface the real cause:

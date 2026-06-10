@@ -25,6 +25,27 @@ Demystify the `AWSAccelerator-Pipeline`. Each stage has its own purpose, IAM pri
 
 ---
 
+## Step 0 — AWS credential preflight (before any AWS command)
+
+This skill runs the AWS CLI against the **management account** in the **HomeRegion**. Wrong account/region or an expired SSO session is the #1 source of confusing failures — verify first:
+
+```bash
+aws sts get-caller-identity     # Account + ARN — who am I?
+aws configure list              # active profile + region
+```
+
+Confirm against `<customer>-lza-plan.md`: **Account == Management account**, **Region == HomeRegion**.
+
+Set credentials up yourself — **never store creds in the repo, prefer temporary SSO credentials over long-lived keys:**
+```bash
+aws sso login --profile <customer>-mgmt
+export AWS_PROFILE=<customer>-mgmt AWS_REGION=<HomeRegion>
+```
+
+Deploy/monitor needs access to **CodePipeline, CodeBuild, CloudFormation, and Control Tower** in the management account. If identity/region is wrong, fix it before triggering or inspecting the pipeline.
+
+---
+
 ## Pipeline stage map (`AWSAccelerator-Pipeline`)
 
 | Stage | What runs | Typical duration | Common failures |
