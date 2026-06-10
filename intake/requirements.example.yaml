@@ -1,0 +1,86 @@
+# =============================================================================
+#  LZA INTAKE — the ONE file the engineer fills from customer requirements.
+#  Fill in subnet NAMES + how many IPs each needs; this tool decides the CIDRs,
+#  sizes each subnet to fit, and refuses any layout that overlaps on-prem.
+#  Then run:  python3 plan_subnets.py requirements.example.yaml
+# =============================================================================
+
+customer: acme
+
+# Default AZ list for every tier unless a tier overrides it.
+azs: [a, b, c]
+
+# The LZA address space. Must NOT overlap anything in external_cidrs below.
+supernet: 10.240.0.0/13          # 10.240.0.0 – 10.247.255.255
+
+# ---- On-prem / peer networks to AVOID (the overlap guard) -------------------
+# List EVERY range reachable over DX / VPN / cloud-peering. The planner errors
+# out if any VPC or subnet it generates touches one of these.
+external_cidrs:
+  - { cidr: 10.0.0.0/12,    source: on-prem-datacenter, description: corporate DC (10.0–10.15) }
+  - { cidr: 172.16.0.0/16,  source: vpn-branch-offices,  description: branch offices }
+  - { cidr: 192.168.0.0/16, source: legacy-lab,          description: lab / legacy }
+
+# ---- Accounts (matches the AWS Universal Config baseline names) --------------
+# Names align with modules/base/default so the intake output merges cleanly with
+# the baseline. type: Mandatory -> mandatoryAccounts; everything else -> workloadAccounts.
+accounts:
+  - { name: Management,     alias: management,     ou: Root,           email: aws-managers+management@acme.com, type: Mandatory, description: Org management }
+  - { name: LogArchive,     alias: logarchive,     ou: Security,       email: aws-managers+log@acme.com,        type: Mandatory, description: Central log archive }
+  - { name: Audit,          alias: audit,          ou: Security,       email: aws-managers+audit@acme.com,      type: Mandatory, description: Security delegated admin }
+  - { name: Network,        alias: network,        ou: Infrastructure, email: aws-managers+network@acme.com,    type: Workload,  description: TGW / ingress / egress / inspection (no DNS or central-endpoints VPC) }
+  - { name: SharedServices, alias: sharedservices, ou: Infrastructure, email: aws-managers+shared@acme.com,     type: Workload,  description: Shared services }
+  - { name: Perimeter,      alias: perimeter,      ou: Infrastructure, email: aws-managers+perimeter@acme.com,  type: Workload,  description: Ingress/egress, NAT, public ALB/WAF }
+  - { name: acme-app-a,     alias: acme-app-a,     ou: Workloads/Prod, email: aws-managers+app-a@acme.com,      type: Workload,  description: App A production }
+  - { name: acme-app-b,     alias: acme-app-b,     ou: Workloads/Prod, email: aws-managers+app-b@acme.com,      type: Workload,  description: App B production }
+
+# ---- OU structure (DEFAULT — matches the AWS Universal Config baseline) ------
+# Customer changes only if they ask; see default-ou-structure.md for an example.
+ous:
+  - { path: Root,              parent: "-",        purpose: AWS Organization root }
+  - { path: Security,          parent: Root,       purpose: Audit + LogArchive }
+  - { path: Infrastructure,    parent: Root,       purpose: Network / SharedServices / Perimeter }
+  - { path: Suspended,         parent: Root,       purpose: Decommissioned, ignore: true }
+  - { path: Workloads,         parent: Root,       purpose: Application workload parent }
+  - { path: Workloads/Sandbox, parent: Workloads,  purpose: Sandbox accounts }
+  - { path: Workloads/Dev,     parent: Workloads,  purpose: Development accounts }
+  - { path: Workloads/Test,    parent: Workloads,  purpose: Test accounts }
+  - { path: Workloads/Prod,    parent: Workloads,  purpose: Production accounts }
+
+# ---- VPCs ===> THE SUBNET INTAKE (your "10 vs 12 subnets" question) ---------
+# Each tier becomes ONE subnet per AZ. `ips` = usable IPs needed PER subnet;
+# the planner picks the smallest prefix that fits (so different tiers get
+# different sizes — bigger app tier, tiny tgw tier).
+#
+# Design notes (per engagement decisions):
+#   * NO IPAM — every CIDR here is explicit.
+#   * NO DNS hub VPC and NO central interface-endpoints VPC.
+#     Where a spoke needs private AWS API access, it uses its OWN small
+#     `endpoints` tier (per-VPC interface endpoints) instead of a shared VPC.
+vpcs:
+
+  # Account A — 10 subnets  (3+3+3 across AZs, + 1 single-AZ tgw)
+  - name: vpc-euc1-app-a
+    account: acme-app-a
+    region: eu-central-1
+    cidr: 10.242.0.0/16
+    vpc_type: Spoke - App A
+    tgw: tgw-euc1
+    tiers:
+      - { name: loadbalancer, ips: 1000, route_table: rt-app-a-lb,       type: Private, purpose: ALB/NLB ENIs }
+      - { name: private,      ips: 8000, route_table: rt-app-a-private,  type: Private, purpose: app/compute ENIs }
+      - { name: database,     ips: 1000, route_table: rt-app-a-database, type: Private, purpose: Aurora subnet group }
+      - { name: tgw,          ips: 8,    route_table: rt-app-a-tgw,      type: Transit, purpose: TGW attachment ENIs, azs: [a] }
+
+  # Account B — 12 subnets  (3+3+3+3 across AZs)
+  - name: vpc-euc1-app-b
+    account: acme-app-b
+    region: eu-central-1
+    cidr: 10.243.0.0/16
+    vpc_type: Spoke - App B
+    tgw: tgw-euc1
+    tiers:
+      - { name: loadbalancer, ips: 500,  route_table: rt-app-b-lb,        type: Private, purpose: ALB/NLB ENIs }
+      - { name: private,      ips: 4000, route_table: rt-app-b-private,   type: Private, purpose: app/compute ENIs }
+      - { name: database,     ips: 500,  route_table: rt-app-b-database,  type: Private, purpose: RDS subnet group }
+      - { name: endpoints,    ips: 60,   route_table: rt-app-b-endpoints, type: Private, purpose: interface endpoints }

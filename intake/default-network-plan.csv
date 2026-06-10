@@ -1,0 +1,79 @@
+Account,VPC Name,Region,VPC CIDR,Subnet Name,Tier,AZ,Subnet CIDR,Prefix,IPs Requested,IPs Usable,Route Table,Subnet Type,Purpose
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-protected-a,protected,a,10.240.0.0/25,/25,60,123,rt-ingress-protected,Public,Public ALB
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-protected-b,protected,b,10.240.0.128/25,/25,60,123,rt-ingress-protected,Public,Public ALB
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-protected-c,protected,c,10.240.1.0/25,/25,60,123,rt-ingress-protected,Public,Public ALB
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-firewall-a,firewall,a,10.240.1.128/28,/28,8,11,rt-ingress-firewall,Firewall,NFW endpoints (reserved)
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-firewall-b,firewall,b,10.240.1.144/28,/28,8,11,rt-ingress-firewall,Firewall,NFW endpoints (reserved)
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-firewall-c,firewall,c,10.240.1.160/28,/28,8,11,rt-ingress-firewall,Firewall,NFW endpoints (reserved)
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-tgw-a,tgw,a,10.240.1.176/28,/28,8,11,rt-ingress-tgw,Transit,TGW attachment ENIs
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-tgw-b,tgw,b,10.240.1.192/28,/28,8,11,rt-ingress-tgw,Transit,TGW attachment ENIs
+Perimeter,vpc-ingress,{{ HomeRegion }},10.240.0.0/22,subnet-tgw-c,tgw,c,10.240.1.208/28,/28,8,11,rt-ingress-tgw,Transit,TGW attachment ENIs
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-public-a,public,a,10.240.4.0/28,/28,8,11,rt-egress-public,Public,NAT Gateways
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-public-b,public,b,10.240.4.16/28,/28,8,11,rt-egress-public,Public,NAT Gateways
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-public-c,public,c,10.240.4.32/28,/28,8,11,rt-egress-public,Public,NAT Gateways
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-firewall-a,firewall,a,10.240.4.48/28,/28,8,11,rt-egress-firewall,Firewall,NFW endpoints (reserved)
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-firewall-b,firewall,b,10.240.4.64/28,/28,8,11,rt-egress-firewall,Firewall,NFW endpoints (reserved)
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-firewall-c,firewall,c,10.240.4.80/28,/28,8,11,rt-egress-firewall,Firewall,NFW endpoints (reserved)
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-tgw-a,tgw,a,10.240.4.96/28,/28,8,11,rt-egress-tgw,Transit,TGW attachment ENIs
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-tgw-b,tgw,b,10.240.4.112/28,/28,8,11,rt-egress-tgw,Transit,TGW attachment ENIs
+Perimeter,vpc-egress,{{ HomeRegion }},10.240.4.0/24,subnet-tgw-c,tgw,c,10.240.4.128/28,/28,8,11,rt-egress-tgw,Transit,TGW attachment ENIs
+Network,vpc-inspection,{{ HomeRegion }},10.240.5.0/24,subnet-firewall-a,firewall,a,10.240.5.0/28,/28,8,11,rt-inspection-firewall,Firewall,AWS Network Firewall endpoints
+Network,vpc-inspection,{{ HomeRegion }},10.240.5.0/24,subnet-firewall-b,firewall,b,10.240.5.16/28,/28,8,11,rt-inspection-firewall,Firewall,AWS Network Firewall endpoints
+Network,vpc-inspection,{{ HomeRegion }},10.240.5.0/24,subnet-firewall-c,firewall,c,10.240.5.32/28,/28,8,11,rt-inspection-firewall,Firewall,AWS Network Firewall endpoints
+Network,vpc-inspection,{{ HomeRegion }},10.240.5.0/24,subnet-tgw-a,tgw,a,10.240.5.48/28,/28,8,11,rt-inspection-tgw,Transit,TGW attachment (pre-inspection)
+Network,vpc-inspection,{{ HomeRegion }},10.240.5.0/24,subnet-tgw-b,tgw,b,10.240.5.64/28,/28,8,11,rt-inspection-tgw,Transit,TGW attachment (pre-inspection)
+Network,vpc-inspection,{{ HomeRegion }},10.240.5.0/24,subnet-tgw-c,tgw,c,10.240.5.80/28,/28,8,11,rt-inspection-tgw,Transit,TGW attachment (pre-inspection)
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-private-a,private,a,10.240.7.0/27,/27,25,27,rt-shared-private,Private,shared tooling
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-private-b,private,b,10.240.7.32/27,/27,25,27,rt-shared-private,Private,shared tooling
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-private-c,private,c,10.240.7.64/27,/27,25,27,rt-shared-private,Private,shared tooling
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-endpoints-a,endpoints,a,10.240.7.96/27,/27,25,27,rt-shared-endpoints,Private,interface endpoints (shared)
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-endpoints-b,endpoints,b,10.240.7.128/27,/27,25,27,rt-shared-endpoints,Private,interface endpoints (shared)
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-endpoints-c,endpoints,c,10.240.7.160/27,/27,25,27,rt-shared-endpoints,Private,interface endpoints (shared)
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-tgw-a,tgw,a,10.240.7.192/28,/28,8,11,rt-shared-tgw,Transit,TGW attachment ENIs
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-tgw-b,tgw,b,10.240.7.208/28,/28,8,11,rt-shared-tgw,Transit,TGW attachment ENIs
+SharedServices,vpc-sharedservices,{{ HomeRegion }},10.240.7.0/24,subnet-tgw-c,tgw,c,10.240.7.224/28,/28,8,11,rt-shared-tgw,Transit,TGW attachment ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-private-a,private,a,10.242.0.0/19,/19,8000,8187,rt-prod-private,Private,app/compute ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-private-b,private,b,10.242.32.0/19,/19,8000,8187,rt-prod-private,Private,app/compute ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-private-c,private,c,10.242.64.0/19,/19,8000,8187,rt-prod-private,Private,app/compute ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-loadbalancer-a,loadbalancer,a,10.242.96.0/22,/22,1000,1019,rt-prod-lb,Private,ALB/NLB ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-loadbalancer-b,loadbalancer,b,10.242.100.0/22,/22,1000,1019,rt-prod-lb,Private,ALB/NLB ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-loadbalancer-c,loadbalancer,c,10.242.104.0/22,/22,1000,1019,rt-prod-lb,Private,ALB/NLB ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-database-a,database,a,10.242.108.0/22,/22,1000,1019,rt-prod-database,Private,Aurora/RDS
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-database-b,database,b,10.242.112.0/22,/22,1000,1019,rt-prod-database,Private,Aurora/RDS
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-database-c,database,c,10.242.116.0/22,/22,1000,1019,rt-prod-database,Private,Aurora/RDS
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-endpoints-a,endpoints,a,10.242.120.0/25,/25,60,123,rt-prod-endpoints,Private,per-VPC interface endpoints
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-endpoints-b,endpoints,b,10.242.120.128/25,/25,60,123,rt-prod-endpoints,Private,per-VPC interface endpoints
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-endpoints-c,endpoints,c,10.242.121.0/25,/25,60,123,rt-prod-endpoints,Private,per-VPC interface endpoints
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-tgw-a,tgw,a,10.242.121.128/28,/28,8,11,rt-prod-tgw,Transit,TGW attachment ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-tgw-b,tgw,b,10.242.121.144/28,/28,8,11,rt-prod-tgw,Transit,TGW attachment ENIs
+customer-prd,vpc-prod,{{ HomeRegion }},10.242.0.0/16,subnet-tgw-c,tgw,c,10.242.121.160/28,/28,8,11,rt-prod-tgw,Transit,TGW attachment ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-private-a,private,a,10.243.0.0/19,/19,8000,8187,rt-dev-private,Private,app/compute ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-private-b,private,b,10.243.32.0/19,/19,8000,8187,rt-dev-private,Private,app/compute ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-private-c,private,c,10.243.64.0/19,/19,8000,8187,rt-dev-private,Private,app/compute ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-loadbalancer-a,loadbalancer,a,10.243.96.0/22,/22,1000,1019,rt-dev-lb,Private,ALB/NLB ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-loadbalancer-b,loadbalancer,b,10.243.100.0/22,/22,1000,1019,rt-dev-lb,Private,ALB/NLB ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-loadbalancer-c,loadbalancer,c,10.243.104.0/22,/22,1000,1019,rt-dev-lb,Private,ALB/NLB ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-database-a,database,a,10.243.108.0/22,/22,1000,1019,rt-dev-database,Private,Aurora/RDS
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-database-b,database,b,10.243.112.0/22,/22,1000,1019,rt-dev-database,Private,Aurora/RDS
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-database-c,database,c,10.243.116.0/22,/22,1000,1019,rt-dev-database,Private,Aurora/RDS
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-endpoints-a,endpoints,a,10.243.120.0/25,/25,60,123,rt-dev-endpoints,Private,per-VPC interface endpoints
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-endpoints-b,endpoints,b,10.243.120.128/25,/25,60,123,rt-dev-endpoints,Private,per-VPC interface endpoints
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-endpoints-c,endpoints,c,10.243.121.0/25,/25,60,123,rt-dev-endpoints,Private,per-VPC interface endpoints
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-tgw-a,tgw,a,10.243.121.128/28,/28,8,11,rt-dev-tgw,Transit,TGW attachment ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-tgw-b,tgw,b,10.243.121.144/28,/28,8,11,rt-dev-tgw,Transit,TGW attachment ENIs
+customer-dev,vpc-dev,{{ HomeRegion }},10.243.0.0/16,subnet-tgw-c,tgw,c,10.243.121.160/28,/28,8,11,rt-dev-tgw,Transit,TGW attachment ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-private-a,private,a,10.244.0.0/19,/19,8000,8187,rt-test-private,Private,app/compute ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-private-b,private,b,10.244.32.0/19,/19,8000,8187,rt-test-private,Private,app/compute ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-private-c,private,c,10.244.64.0/19,/19,8000,8187,rt-test-private,Private,app/compute ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-loadbalancer-a,loadbalancer,a,10.244.96.0/22,/22,1000,1019,rt-test-lb,Private,ALB/NLB ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-loadbalancer-b,loadbalancer,b,10.244.100.0/22,/22,1000,1019,rt-test-lb,Private,ALB/NLB ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-loadbalancer-c,loadbalancer,c,10.244.104.0/22,/22,1000,1019,rt-test-lb,Private,ALB/NLB ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-database-a,database,a,10.244.108.0/22,/22,1000,1019,rt-test-database,Private,Aurora/RDS
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-database-b,database,b,10.244.112.0/22,/22,1000,1019,rt-test-database,Private,Aurora/RDS
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-database-c,database,c,10.244.116.0/22,/22,1000,1019,rt-test-database,Private,Aurora/RDS
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-endpoints-a,endpoints,a,10.244.120.0/25,/25,60,123,rt-test-endpoints,Private,per-VPC interface endpoints
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-endpoints-b,endpoints,b,10.244.120.128/25,/25,60,123,rt-test-endpoints,Private,per-VPC interface endpoints
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-endpoints-c,endpoints,c,10.244.121.0/25,/25,60,123,rt-test-endpoints,Private,per-VPC interface endpoints
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-tgw-a,tgw,a,10.244.121.128/28,/28,8,11,rt-test-tgw,Transit,TGW attachment ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-tgw-b,tgw,b,10.244.121.144/28,/28,8,11,rt-test-tgw,Transit,TGW attachment ENIs
+customer-tst,vpc-test,{{ HomeRegion }},10.244.0.0/16,subnet-tgw-c,tgw,c,10.244.121.160/28,/28,8,11,rt-test-tgw,Transit,TGW attachment ENIs

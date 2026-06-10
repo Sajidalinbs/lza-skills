@@ -1,0 +1,28 @@
+# ── macOS / editor junk ──────────────────────────────────────────────
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# ── Python ───────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+
+# ── Excel lock files ─────────────────────────────────────────────────
+~$*
+
+# ── CUSTOMER DATA — never commit (real emails / account IDs / CIDRs) ──
+# The reference workbook and any per-customer intake/plan live OUTSIDE the repo.
+*AWS Account and VPC design.xlsx
+requirements.*.yaml
+!requirements.default.yaml
+!requirements.example.yaml
+
+# Per-customer generated outputs (the generic default-network-plan.* is kept)
+*-network-plan.xlsx
+*-network-plan.csv
+!intake/default-network-plan.xlsx
+!intake/default-network-plan.csv
+intake/accounts-config.yaml
+intake/organization-config.yaml
+intake/network-config.snippet.yaml
