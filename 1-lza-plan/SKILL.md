@@ -119,6 +119,7 @@ OptIn regions used: yes/no
 - Moving an account between OUs: ⚠️ possible but causes baseline drift
 - Renaming/deleting an OU with accounts in it: ❌ requires moving accounts first, then deleting
 - **Renaming an OU after CT controls are attached: ❌ effectively impossible.** LZA's CDK derives CFN logical IDs from OU names. Renaming produces new logical IDs that try to claim physical resources still owned by the old ones in the same stack — CloudFormation refuses (`already exists in stack`). There is no graceful forward fix; the only safe path is to revert the rename. **Treat OU names as immutable once `/lza-deploy` has run.** Spend the time at this step getting them right. See the `/lza-troubleshoot` "OU rename trap" runbook for the full failure mode.
+- **Deleting an OU that exists in AWS: ⚠️ manual cleanup required.** LZA never auto-deletes OUs. Removing one from `organization-config.yaml` triggers a `ValidateEnvironmentConfig` failure in the Prepare stack *before* CT controls/baselines can be torn down. Sequence as a two-phase change: (1) Pipeline moves accounts out of the doomed OU; (2) Operator manually disables CT controls + the baseline on the empty OU, deletes the OU via Organizations API, then removes it from config and re-runs. The CT baseline-disable API serializes org-wide — clean OUs sequentially through that step. See the `/lza-troubleshoot` "OU delete trap" runbook and `scripts/cleanup_empty_ous.py`.
 
 **Default (the LZA reference structure):**
 ```

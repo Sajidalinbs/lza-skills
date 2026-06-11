@@ -1,6 +1,6 @@
 ---
 name: lza-troubleshoot
-description: Use when an LZA pipeline run fails or behaves unexpectedly. Provides a structured diagnostic playbook for Control Tower baseline failures, SCP-blocked Account Factory operations, orphan IAM roles from partially-failed deploys, MISSING_PERMISSIONS_AF_PRODUCT pre-check failures, SSO/IAM Identity Center conflicts, Organizations API eventual-consistency traps, and OU-rename CloudFormation logical-ID conflicts. Invoke at the moment of a pipeline failure to identify root cause and apply the fix.
+description: Use when an LZA pipeline run fails or behaves unexpectedly. Provides a structured diagnostic playbook for Control Tower baseline failures, SCP-blocked Account Factory operations, orphan IAM roles from partially-failed deploys, MISSING_PERMISSIONS_AF_PRODUCT pre-check failures, SSO/IAM Identity Center conflicts, Organizations API eventual-consistency traps, OU-rename CloudFormation logical-ID conflicts, and OU-delete ValidateEnvironmentConfig failures. Invoke at the moment of a pipeline failure to identify root cause and apply the fix.
 ---
 
 # `/lza-troubleshoot` — Diagnostic playbook for LZA pipeline failures
@@ -83,6 +83,7 @@ The pre-check event is the single most useful artifact — `failedPrechecks` tel
 | `Account is not in ACTIVE state` pre-check | Newly created account still initializing (`PENDING_CLOSURE`/`SUSPENDED` transient) | Wait 2–5 min, re-run. AWS-side latency, not a config error. |
 | AWS Config queries from Audit return only Audit's own recorder | Per-account `select-resource-config` vs org-wide `select-aggregate-resource-config` (aggregator) confusion | Use the **aggregator** API, or Console → Config → Aggregators → Advanced query. |
 | `AWS::ControlTower::EnabledControl <id><OUName>` `<ou-arn>\|<control-arn> already exists in stack` during the Deploy stage's OrganizationsStack update | An OU was renamed AFTER LZA had attached CT controls to it. LZA's CDK derives CFN logical IDs from OU names (`<control-id><OUNameCamelCased>`), so the rename produces NEW logical IDs that try to claim physical resources still owned by the OLD logical IDs in the same stack. CFN refuses. **Disabling the CT controls does NOT fix this** — CFN tracks ownership in stack state independently of whether the AWS-side resource exists. | **There is no graceful forward fix.** Recommended: revert the rename (rename OU back, re-enable any controls you disabled while diagnosing, `git revert` the rename commit, push). See "OU rename trap" runbook below. Avoid by pinning OU names at `/lza-plan` Decision 3 time. |
+| `ValidateEnvironmentConfig` UPDATE_FAILED in the Prepare stack with `Organizational Unit '<name>' with id of '<ou-id>' was not found in the organization configuration.` after you removed an OU from `organization-config.yaml` | **LZA never deletes OUs implicitly.** Removing an OU from config is treated as a config drift error by the `ValidateEnvironmentConfig` Lambda, which runs *before* the Controls/Baseline stages that could otherwise tear down the OU's CT governance. The validator hard-fails the Prepare stack, so nothing else runs. | Manually deregister and delete the orphan OU(s) in this order, then re-run the pipeline (no config change needed): **(a)** disable all `EnabledControl` resources on each OU via `controltower:DisableControl`; **(b)** disable the CT `EnabledBaseline` via `controltower:DisableBaseline`; **(c)** `organizations:DeleteOrganizationalUnit`. Verify the OU is empty (no accounts, no child OUs) first. See "OU delete trap" runbook below. |
 
 ---
 
@@ -186,6 +187,83 @@ git push
 
 If the customer asks for an OU rename post-deployment, push back hard. The realistic answer is "we can't, but we can rename the *account* if that addresses the underlying dissonance" — account aliases are mutable; OUs after CT attachment are not.
 
+### OU delete trap (`ValidateEnvironmentConfig` orphan-OU failure)
+
+> ⚠️ **LZA never deletes OUs implicitly.** Removing an OU from `organization-config.yaml` is a config-drift error, not a delete instruction. Clean up CT governance first, then the OU, then re-run.
+
+**What it looks like.** The Prepare stack's `Custom::ValidateEnvironmentConfiguration` resource fails with:
+
+```
+UPDATE_FAILED  Custom::ValidateEnvironmentConfiguration  ValidateEnvironmentResource
+Received response status [FAILED] from custom resource. Message returned:
+  Organizational Unit '<OU/Path>' with id of '<ou-id>' was not found in the organization configuration.
+```
+
+The Prepare stack then rolls back and the pipeline halts before the Organizations/Controls/Baseline stages — which is precisely why LZA can't clean up the OU on your behalf: it never gets the chance.
+
+**Why it happens.** Two reinforcing constraints:
+
+1. The validator runs **before** the stages that would normally tear down CT governance on the OU.
+2. AWS Organizations refuses `DeleteOrganizationalUnit` on any OU that is registered with Control Tower (an `EnabledBaseline` is attached, or `EnabledControl`s exist).
+
+So even if the validator were silent, AWS would still reject the delete. Both paths converge on manual cleanup.
+
+**Pre-checks before cleanup.** Confirm the OU is genuinely safe to delete:
+
+```bash
+PROFILE=<mgmt-profile>; REGION=<home-region>; OU_ID=<orphan-ou-id>
+ORG_ID=$(aws organizations describe-organization --profile $PROFILE --region $REGION --query 'Organization.Id' --output text)
+MGMT=$(aws sts get-caller-identity --profile $PROFILE --region $REGION --query 'Account' --output text)
+OU_ARN="arn:aws:organizations::${MGMT}:ou/${ORG_ID}/${OU_ID}"
+
+aws organizations list-accounts-for-parent --parent-id $OU_ID --profile $PROFILE --region $REGION
+aws organizations list-organizational-units-for-parent --parent-id $OU_ID --profile $PROFILE --region $REGION
+aws controltower list-enabled-controls --target-identifier "$OU_ARN" --profile $PROFILE --region $REGION
+aws controltower list-enabled-baselines --filter targetIdentifiers="$OU_ARN" --profile $PROFILE --region $REGION
+```
+
+If `list-accounts-for-parent` or `list-organizational-units-for-parent` return anything, **STOP** — move/relocate them first via a separate change (account-move is non-destructive; deleting an OU with children is not allowed by AWS anyway).
+
+**Cleanup order (per OU).**
+
+1. **Disable all `EnabledControl`s** on the OU. Controls within a single OU can be disabled in parallel.
+2. **Wait for every disable-control op to reach `SUCCEEDED`.**
+3. **Disable the `EnabledBaseline`** on the OU. ⚠️ **Control Tower serializes baseline operations org-wide** — only one baseline op can be in flight across the entire Organization, even across different OUs. If you're cleaning up multiple OUs, **serialize the baseline disables** (or expect `ConflictException: AWS Control Tower cannot perform the requested baseline operation because another operation is in progress.` and retry).
+4. **Wait for the disable-baseline op to reach `SUCCEEDED`** (~1–2 min).
+5. **Delete the OU** via `organizations:DeleteOrganizationalUnit`. Instant.
+
+**Reference automation.** A complete orchestrator that handles parallel control-disable, the baseline serialization gotcha, and ordered OU deletion is in `scripts/cleanup_empty_ous.py`. The shape:
+
+```python
+# Per-OU sequence (run multiple OUs concurrently for steps 1–2; serialize step 3 across OUs):
+controls = aws controltower list-enabled-controls --target-identifier $OU_ARN
+parallel:                                                                    # step 1
+  for c in controls: aws controltower disable-control --control-identifier $c --target-identifier $OU_ARN
+wait_all(op_ids, get-control-operation → SUCCEEDED)                          # step 2
+aws controltower disable-baseline --enabled-baseline-identifier $BASELINE    # step 3 (serialize across OUs)
+wait(op_id, get-baseline-operation → SUCCEEDED)                              # step 4
+aws organizations delete-organizational-unit --organizational-unit-id $OU_ID # step 5
+```
+
+**Re-run.** Once both `Workloads/Dev` and `Workloads/Test` (or whichever OUs you removed from config) are gone from AWS Organizations, **no config change is needed** — re-trigger the pipeline:
+
+```bash
+aws codepipeline start-pipeline-execution --name AWSAccelerator-Pipeline --profile $PROFILE --region $REGION
+```
+
+The validator will now see zero orphans and pass.
+
+**Why this isn't symmetric with OU creation.** LZA creates OUs declaratively because creation is non-destructive. It refuses to delete declaratively because OU deletion can orphan accounts, drop policy enforcement, and is irreversible — a config typo causing accidental OU loss would be catastrophic. The asymmetry is deliberate.
+
+**Prevention / sequencing for OU restructure work.** When you need to retire OUs as part of a larger restructure, run it as a two-phase change:
+
+1. **Phase 1 (config + pipeline):** Add the new OUs to config, move all accounts out of the to-be-retired OUs into the new ones. Pipeline succeeds — old OUs are now empty.
+2. **Phase 2 (manual cleanup + pipeline):** Cleanup-then-remove. Either:
+   - **Option A (preferred):** Manually disable controls + baseline + delete the empty OU(s), THEN remove them from config and push. Pipeline succeeds cleanly.
+   - **Option B (acceptable):** Remove from config + push first, hit the validator failure (this trap), then do the manual cleanup, then re-run. Same end state, one extra pipeline failure on the record.
+
+Document this sequence in the customer-facing change plan; the cleanup step is operator work that LZA cannot automate.
+
 ---
 
 ## Bundled scripts (`scripts/`)
@@ -196,6 +274,7 @@ If the customer asks for an OU rename post-deployment, push back hard. The reali
 | `patch_deployed_scps.py` | Patch **deployed** SCP content in-place via the Organizations `update-policy` API |
 | `find_precheck_failure.sh` | CloudTrail one-liner to find the `PrecheckOrganizationalUnit` failure event |
 | `delete_orphan_ct_role.sh` | Clean up an orphan `AWSControlTowerExecution` role in a member account |
+| `cleanup_empty_ous.py` | Tear down empty OUs that `ValidateEnvironmentConfig` is complaining about: disable CT controls + baseline + delete OU, with the baseline-serialization gotcha handled |
 
 > All scripts are **read-what-they-do before running** — they modify SCPs and IAM. Run with credentials scoped to the management account (and the target member account for the role cleanup). Dry-run flags are provided where destructive.
 
