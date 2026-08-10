@@ -146,6 +146,27 @@ APIs can say "healthy" while the data path is broken. Prove the paths:
 3. **East-west TGW routing works:** from a **Prod** EC2, reach a **SharedServices** internal IP — proving inter-VPC routing over the TGW.
 4. **Security aggregation works:** in the **Audit** account, `aws securithub get-findings` returns findings **from member accounts**, not just Audit.
 
+### Automated ingress + egress proof through the NFW (Terraform harness) ⭐
+
+The single most thorough network check — proves the **full cross-account, cross-VPC, cross-firewall** data path in one apply, instead of hand-launching EC2s. A bundled, parameterized Terraform stack ships in **[`test-infra/`](./test-infra/README.md)**.
+
+```bash
+cd test-infra
+cp terraform.tfvars.example terraform.tfvars   # set prefix, region, profiles, workload VPC/subnet names
+terraform init && terraform apply              # ~19 resources, ~$1.50/day, throwaway
+# INGRESS:
+curl -s http://$(terraform output -raw public_alb_dns_name)/ | head   # expect "Welcome to nginx!"
+# EGRESS:
+aws logs tail "$(terraform output -raw ecs_log_group)" --log-stream-name-prefix egress --since 5m --profile <stg> --region <region>
+terraform destroy                              # always tear down after
+```
+
+It stands up a public ALB (Perimeter) → cross-account 443 IP target → TGW → **NFW** → internal ALB (workload) → ECS nginx, plus an ECS egress-probe sidecar. **Green = `HTTP 200` nginx HTML (ingress) + the probe reaching AWS (egress).**
+
+- **Prereq:** the inspection layer must actually be deployed (TGW `rt-spoke→inspection` / `rt-firewall→egress`, NFW `READY`, NAT, `ingress→IGW`) — confirm §6 first, or the harness fails at the routing layer (not a harness bug).
+- **Confirm the tag:Name values first** — LZA names subnets `subnet-<tier>-<az>` (not `<prefix>-<tier>-<az>`); set them in `terraform.tfvars`.
+- Under an **allow-all** firewall the egress probe's `example.com` line returns `HTTP 200`; under a tightened per-SNI allowlist it's denied — both are correct for the current ruleset.
+
 Any failure here points back to a specific config block — chase it via `/lza-troubleshoot`.
 
 ---

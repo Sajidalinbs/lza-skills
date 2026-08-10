@@ -32,7 +32,7 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-PROFILE = "<mgmt-profile>"      # e.g. moritz-mgmt-iam
+PROFILE = "<mgmt-profile>"      # e.g. acme-mgmt-iam
 REGION = "<home-region>"        # e.g. eu-central-1
 MGMT_ACCT = "<mgmt-account-id>" # 12-digit management account id
 ORG_ID = "<o-...>"              # aws organizations describe-organization --query 'Organization.Id'

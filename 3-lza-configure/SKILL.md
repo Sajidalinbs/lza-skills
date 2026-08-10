@@ -25,7 +25,7 @@ intake/fetch_baseline.sh <config-repo-dir>          # copies base/default into t
 What the baseline ships (so you customize, not author):
 - **Accounts:** Management, LogArchive, Audit (mandatory) + Network, SharedServices, Perimeter
 - **OUs:** Security, Infrastructure, Suspended (`ignore`), Workloads/{Sandbox,Dev,Test,Prod}
-- **Prefix:** `AWSAccelerator` in `replacements-config.yaml` — change BEFORE first deploy
+- **Prefix:** `AWSAccelerator` in `replacements-config.yaml` — change BEFORE first deploy, and set the **same** value as the installer CFN `AcceleratorPrefix` parameter (see section 1). If you change it, also fix the hardcoded `"AWSAccelerator"` in `security-config.yaml` suppression rules (section 5).
 
 > **Networking is NOT taken from the baseline.** We do **not** use IPAM, and we do **not** deploy a DNS hub VPC or a central interface-endpoints VPC. The baseline's `modules/network/{hub-and-spoke,shared-vpc}` bundle all three — so seed **base only** and build `network-config.yaml` from the intake planner (explicit CIDRs). Where a spoke needs private AWS API access it gets its own small per-VPC `endpoints` tier instead of a shared endpoints VPC. If you copy a network module for reference, strip its IPAM / DNS-VPC / endpoints-VPC blocks.
 >
@@ -83,6 +83,8 @@ globalReplacements:
 
 **Pitfalls:**
 - ⚠️ **`AcceleratorPrefix` controls the NAME of every LZA-managed resource.** Changing it after the first deploy is a cascading rename of every SCP, role, KMS key, bucket — effectively a teardown (Plan Decision 1). Set once, never touch.
+- 🚨 **The prefix lives in TWO coupled places that MUST be identical — a mismatch breaks the deploy.** It is set both here (`replacements-config.yaml` → `AcceleratorPrefix`) **and** as the **`AcceleratorPrefix` parameter on the installer CloudFormation stack** at `/lza-bootstrap` time. The installer defaults to `AWSAccelerator`; if you customize the config to e.g. `acme` but leave the installer at its default (or vice-versa), the pipeline references resources under a name that doesn't exist and fails. **Whatever value you choose, enter the SAME string in the installer CFN parameter and in this file.** Both are locked after the first run. (The prefix names LZA-managed *infra* — IAM roles, KMS keys, S3 buckets, CFN stacks, SCPs, SNS, Lambdas. VPC/subnet **Name** tags come from `network-config.yaml` `name:` fields, not the prefix; and the CDK qualifier `cdk-accel-*` is fixed regardless of prefix.)
+- ⚠️ **If you change the prefix, also fix the baseline's hardcoded `AWSAccelerator` references** — see the security-config pitfall in section 5 (the Security Hub suppression rules hardcode the prefix in several places and won't match a customized prefix until updated).
 - **`HomeRegion` + `EnabledRegions`** — single-region is simplest; every extra region multiplies cost and the number of stacks. Match the plan exactly.
 - 🚫 **Anti-pattern:** don't define CIDR variables here if you're going **IPAM-less** (the current default). Put explicit CIDRs in `network-config.yaml` instead — scattering CIDRs across replacements makes the network plan unreadable.
 
@@ -231,6 +233,7 @@ iamPasswordPolicy: { minimumPasswordLength: 14, maxPasswordAge: 90 }
 **Pitfalls:**
 - **Delegated admin = Audit account** for all security services — never the management account (AWS best practice; CT expects Audit).
 - **Security Hub findings suppression**: the noisy S3 controls commonly suppressed for LZA-managed buckets are **S3.1, S3.6, S3.7, S3.9, S3.11, S3.15, S3.17, S3.20**. Suppress with documented rationale, don't disable the whole standard.
+- 🚨 **Suppression rules hardcode the prefix — replace with `{{ AcceleratorPrefix }}`.** The AWS baseline (`security-config.yaml`) is internally inconsistent: most `automationRules` reference the prefix via `{{ AcceleratorPrefix }}`, but several `ResourceTags` filters **hardcode the literal `"AWSAccelerator"`** as the `Accelerator` tag *value* (e.g. `- key: "Accelerator"` / `value: "AWSAccelerator"`). LZA tags every resource it makes with `Accelerator=<your-prefix>`, so if your prefix is anything but `AWSAccelerator` these rules silently stop matching and the findings are NOT suppressed (Security Hub noise — not a deploy failure, so it's easy to miss). **Fix:** after seeding the baseline, `grep -n '"AWSAccelerator"' security-config.yaml` and replace every hardcoded `value: "AWSAccelerator"` with `value: "{{ AcceleratorPrefix }}"`. Note the tag *key* `Accelerator` is fixed (don't touch it) — only the *value* is the prefix; and `cdk-accel-*` `ResourceId` filters are the CDK qualifier, which is fixed regardless of prefix — leave those alone.
 - **IAM Identity Center**: configure here **only if LZA manages IDC**. If CT created/owns IDC, defining permission sets here can conflict — confirm against `/lza-bootstrap` Step 8.
 - **Central KMS key**: the key LZA uses for log/bucket encryption — its policy must allow the log-delivery and CT service principals or logging stacks fail.
 
@@ -276,7 +279,39 @@ vpcs:
           routeTableAssociations: [rt-spoke], routeTablePropagations: [rt-spoke] }
 ```
 
+### Central inspection firewall + routing — deploy as BASE (do not defer)
+
+The AWS Network Firewall **and** the TGW inspection routing are **part of the base network**, not a day-2 add-on. Deferring them (empty TGW route tables, no NFW) leaves the landing zone with **no east-west and no egress path** — every connectivity test fails until they exist. (Field lesson: a landing zone shipped without these looked "deployed/green" but couldn't route a single packet between spokes or out to the internet.) Include all four pieces from the start:
+
+1. **TGW route tables with static inspection routes** — spokes associate `rt-spoke`; inspection + egress associate `rt-firewall`:
+   ```yaml
+   transitGateways:
+     - name: "{{ AcceleratorPrefix }}-tgw"
+       routeTables:
+         - name: "{{ AcceleratorPrefix }}-tgw-rt-spoke"     # workloads/ingress/shared attach here
+           routes:
+             - destinationCidrBlock: 0.0.0.0/0
+               attachment: { vpcName: "{{ AcceleratorPrefix }}-inspection", account: Network }
+         - name: "{{ AcceleratorPrefix }}-tgw-rt-firewall"  # inspection + egress attach here
+           routes:
+             - destinationCidrBlock: 0.0.0.0/0
+               attachment: { vpcName: "{{ AcceleratorPrefix }}-egress", account: Perimeter }
+   ```
+   Spoke attachments: `routeTableAssociations: [...-tgw-rt-spoke]`, `routeTablePropagations: [...-tgw-rt-firewall]` (so rt-firewall learns spoke CIDRs for the return path). The **inspection** VPC attachment MUST set `options: { applianceModeSupport: enable }` — required for symmetric flow inspection across AZs.
+2. **The NFW** (`centralNetworkServices.networkFirewall`) in the inspection VPC's firewall subnets (3 AZ), STRICT_ORDER policy. ⚠️ `statefulDefaultActions` must be **`aws:drop_established`** (NOT `drop_strict`): the TLS SNI is only in the ClientHello *after* the TCP handshake, so `drop_strict` drops the SYN and breaks **every** per-SNI egress allow (even allowed hosts fail). `drop_established` lets the handshake complete so SNI can be inspected, then drops unmatched established flows.
+3. **Inspection VPC routes**: firewall subnets `0/0 → TGW` (return leg); tgw subnets `0/0 → networkFirewall` endpoint (per-AZ); and egress-VPC tgw subnets `0/0 → NAT`.
+4. **`firewall-rules/eastwest.txt` + `egress.txt`** (Suricata) referenced by the policy's `statefulRuleGroups`, with `ruleVariables.ipSets` set to the customer's CIDRs (HOME_NET = supernet, spoke/shared pools).
+   > **Start permissive, tighten later.** For first bring-up + connectivity testing, an **allow-all** stateful rule (`pass ip $HOME_NET any -> any any (sid:1;)`) is fine — prove the paths, then replace with the per-SNI egress allowlist (`*.amazonaws.com`, `*.docker.io/.com`, `ghcr.io`, `*.github.com`, DNS) + east-west 443. Validate the live paths with the connectivity harness in `/lza-validate`.
+
 **Pitfalls:**
+- 🚨 **Never RENAME an existing route entry between deploys** (`route already exists ... 0.0.0.0/0` / `HandlerErrorCode: AlreadyExists` on a `RouteEntriesStack`). LZA derives each route's CFN logical ID from its **route name**, and models every route as its own `AWS::EC2::Route`. Renaming a route (or flipping its target) makes CFN **create the new-named route before deleting the old one** — and two routes can't share a destination in one table, so it collides. Keep route names stable once deployed. Recovery: don't hand-delete routes (that leaves CFN drift) — **delete the whole `RouteEntriesStack`** (disable termination protection first; the route *tables* live in a separate stack and survive) and let the pipeline recreate it cleanly. See `/lza-troubleshoot`.
+- 🚨 **`endpointPolicies` is a REQUIRED top-level property** — even if you think you don't use it. The schema requires `network-config.yaml` to have `defaultVpc`, **`endpointPolicies`**, `transitGateways`, `vpcs`. Any `gatewayEndpoints`/`interfaceEndpoints` block referencing `defaultPolicy: Default` (or any named policy) needs that name defined here. Omitting it fails the **Prepare** stage config-validator with: `parsing network-config failed ... must have required property 'endpointPolicies'`. Add:
+  ```yaml
+  endpointPolicies:
+    - name: Default
+      document: vpc-endpoint-policies/default.json   # ships in the AWS baseline
+  ```
+  (Field-tested: a network-config generated without this passed local YAML parsing but failed the pipeline's Prepare validator on first run.)
 - 🚫 **`vpcTemplates` vs explicit `vpcs`**: IPAM was removed → **use explicit `vpcs` entries with hard CIDRs**. `vpcTemplates` (which relied on IPAM auto-allocation) will not allocate as expected.
 - **CIDR overlaps** are the deploy-killer: every VPC CIDR must be unique across the whole TGW domain *and* not overlap on-prem/peer ranges (Plan Decision 5). Cross-check against `network-cidr-plan.md` before deploying.
 - **Central endpoints VPC vs per-VPC interface endpoints**: central is cheaper at scale but adds a TGW hop + Route 53 resolver complexity; per-VPC is simpler but costs ~$7/endpoint/AZ/mo each. Decide per the plan; don't mix accidentally.
@@ -333,6 +368,8 @@ customizations:
 | Pitfall | Consequence | Where |
 |---|---|---|
 | `AcceleratorPrefix` change after first deploy | Catastrophic full rename / teardown | replacements |
+| Prefix mismatch between installer CFN param and `replacements-config.yaml` | Pipeline references non-existent names → deploy fails | replacements + `/lza-bootstrap` |
+| Custom prefix but baseline suppression rules still hardcode `"AWSAccelerator"` | Security Hub suppressions silently don't match → finding noise | security (replace with `{{ AcceleratorPrefix }}`) |
 | SCP without `stacksets-exec-*` exemption | Pipeline fails every run | organization → see `/lza-troubleshoot` |
 | CIDR overlap when adding VPCs | Deploy stage fails / no routing | network |
 | Tag policy `enforced_for` turned on early | Breaks existing non-compliant resources | organization |

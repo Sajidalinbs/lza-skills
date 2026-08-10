@@ -1,0 +1,141 @@
+# CIS AWS Foundations Benchmark — Section 4 "Monitoring" (controls 4.1–4.15).
+# Paste this as the `cloudWatch:` block in security-config.yaml (replacing
+# `cloudWatch: { metricSets: [], alarmSets: [] }`).
+#
+# BEFORE USING:
+#   1. Replace <CT_LOG_GROUP> with the REAL CloudTrail CloudWatch log group name.
+#      With Control Tower it is "aws-controltower/CloudTrailLogs-XXXXX" (the suffix
+#      is deployment-specific — get it from:
+#        aws cloudtrail describe-trails --query 'trailList[].CloudWatchLogsLogGroupArn'
+#      Do NOT templatise the suffix.
+#   2. Deploy ONLY to the account/region holding that log group. With Control Tower
+#      that is the MANAGEMENT account / HomeRegion (member accounts have no local
+#      org-trail log group, so enabling there would FAIL the controls).
+#   3. snsTopicName values must exist in global-config.yaml `snsTopics` and be
+#      deployed to the SAME account (here: Management). Adjust High/Medium routing
+#      to taste. `snsAlertLevel` is deprecated — use `snsTopicName`.
+#   4. CIS controls CloudWatch.1–14 may be DISABLED in Security Hub; building these
+#      filters satisfies external scanners + gives real alerting, but for native-SH
+#      PASS you must re-enable those controls in the Management account only.
+cloudWatch:
+  metricSets:
+    - regions:
+        - <HomeRegion>
+      deploymentTargets:
+        accounts:
+          - Management
+      metrics:
+        - filterName: RootAccountUsageMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ $.userIdentity.type = "Root" && $.userIdentity.invokedBy NOT EXISTS && $.eventType != "AwsServiceEvent" }'
+          metricNamespace: LogMetrics
+          metricName: RootAccountUsage
+          metricValue: "1"
+        - filterName: UnauthorizedApiCallsMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.errorCode = "*UnauthorizedOperation") || ($.errorCode = "AccessDenied*") }'
+          metricNamespace: LogMetrics
+          metricName: UnauthorizedApiCalls
+          metricValue: "1"
+        - filterName: ConsoleSigninWithoutMfaMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = "ConsoleLogin") && ($.additionalEventData.MFAUsed != "Yes") && ($.userIdentity.type = "IAMUser") && ($.responseElements.ConsoleLogin = "Success") }'
+          metricNamespace: LogMetrics
+          metricName: ConsoleSigninWithoutMfa
+          metricValue: "1"
+        - filterName: ConsoleAuthFailuresMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = ConsoleLogin) && ($.errorMessage = "Failed authentication") }'
+          metricNamespace: LogMetrics
+          metricName: ConsoleAuthFailures
+          metricValue: "1"
+        - filterName: IamPolicyChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{($.eventName=DeleteGroupPolicy)||($.eventName=DeleteRolePolicy)||($.eventName=DeleteUserPolicy)||($.eventName=PutGroupPolicy)||($.eventName=PutRolePolicy)||($.eventName=PutUserPolicy)||($.eventName=CreatePolicy)||($.eventName=DeletePolicy)||($.eventName=CreatePolicyVersion)||($.eventName=DeletePolicyVersion)||($.eventName=AttachRolePolicy)||($.eventName=DetachRolePolicy)||($.eventName=AttachUserPolicy)||($.eventName=DetachUserPolicy)||($.eventName=AttachGroupPolicy)||($.eventName=DetachGroupPolicy)}'
+          metricNamespace: LogMetrics
+          metricName: IamPolicyChanges
+          metricValue: "1"
+        - filterName: CloudTrailConfigChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = CreateTrail) || ($.eventName = UpdateTrail) || ($.eventName = DeleteTrail) || ($.eventName = StartLogging) || ($.eventName = StopLogging) }'
+          metricNamespace: LogMetrics
+          metricName: CloudTrailConfigChanges
+          metricValue: "1"
+        - filterName: CmkDisableOrDeleteMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventSource = kms.amazonaws.com) && (($.eventName = DisableKey) || ($.eventName = ScheduleKeyDeletion)) }'
+          metricNamespace: LogMetrics
+          metricName: CmkDisableOrDelete
+          metricValue: "1"
+        - filterName: S3BucketPolicyChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventSource = s3.amazonaws.com) && (($.eventName = PutBucketAcl) || ($.eventName = PutBucketPolicy) || ($.eventName = PutBucketCors) || ($.eventName = PutBucketLifecycle) || ($.eventName = PutBucketReplication) || ($.eventName = DeleteBucketPolicy) || ($.eventName = DeleteBucketCors) || ($.eventName = DeleteBucketLifecycle) || ($.eventName = DeleteBucketReplication)) }'
+          metricNamespace: LogMetrics
+          metricName: S3BucketPolicyChanges
+          metricValue: "1"
+        - filterName: AwsConfigChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventSource = config.amazonaws.com) && (($.eventName=StopConfigurationRecorder)||($.eventName=DeleteDeliveryChannel)||($.eventName=PutDeliveryChannel)||($.eventName=PutConfigurationRecorder)) }'
+          metricNamespace: LogMetrics
+          metricName: AwsConfigChanges
+          metricValue: "1"
+        - filterName: OrganizationsChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventSource = organizations.amazonaws.com) && (($.eventName = "AcceptHandshake") || ($.eventName = "AttachPolicy") || ($.eventName = "CreateAccount") || ($.eventName = "CreateOrganizationalUnit") || ($.eventName = "CreatePolicy") || ($.eventName = "DeclineHandshake") || ($.eventName = "DeleteOrganization") || ($.eventName = "DeleteOrganizationalUnit") || ($.eventName = "DeletePolicy") || ($.eventName = "DetachPolicy") || ($.eventName = "DisablePolicyType") || ($.eventName = "EnablePolicyType") || ($.eventName = "InviteAccountToOrganization") || ($.eventName = "LeaveOrganization") || ($.eventName = "MoveAccount") || ($.eventName = "RemoveAccountFromOrganization") || ($.eventName = "UpdatePolicy") || ($.eventName = "UpdateOrganizationalUnit")) }'
+          metricNamespace: LogMetrics
+          metricName: OrganizationsChanges
+          metricValue: "1"
+        - filterName: SecurityGroupChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = AuthorizeSecurityGroupIngress) || ($.eventName = AuthorizeSecurityGroupEgress) || ($.eventName = RevokeSecurityGroupIngress) || ($.eventName = RevokeSecurityGroupEgress) || ($.eventName = CreateSecurityGroup) || ($.eventName = DeleteSecurityGroup) }'
+          metricNamespace: LogMetrics
+          metricName: SecurityGroupChanges
+          metricValue: "1"
+        - filterName: NetworkAclChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = CreateNetworkAcl) || ($.eventName = CreateNetworkAclEntry) || ($.eventName = DeleteNetworkAcl) || ($.eventName = DeleteNetworkAclEntry) || ($.eventName = ReplaceNetworkAclEntry) || ($.eventName = ReplaceNetworkAclAssociation) }'
+          metricNamespace: LogMetrics
+          metricName: NetworkAclChanges
+          metricValue: "1"
+        - filterName: NetworkGatewayChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = CreateCustomerGateway) || ($.eventName = DeleteCustomerGateway) || ($.eventName = AttachInternetGateway) || ($.eventName = CreateInternetGateway) || ($.eventName = DeleteInternetGateway) || ($.eventName = DetachInternetGateway) }'
+          metricNamespace: LogMetrics
+          metricName: NetworkGatewayChanges
+          metricValue: "1"
+        - filterName: RouteTableChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = CreateRoute) || ($.eventName = CreateRouteTable) || ($.eventName = ReplaceRoute) || ($.eventName = ReplaceRouteTableAssociation) || ($.eventName = DeleteRouteTable) || ($.eventName = DeleteRoute) || ($.eventName = DisassociateRouteTable) }'
+          metricNamespace: LogMetrics
+          metricName: RouteTableChanges
+          metricValue: "1"
+        - filterName: VpcChangesMetricFilter
+          logGroupName: <CT_LOG_GROUP>
+          filterPattern: '{ ($.eventName = CreateVpc) || ($.eventName = DeleteVpc) || ($.eventName = ModifyVpcAttribute) || ($.eventName = AcceptVpcPeeringConnection) || ($.eventName = CreateVpcPeeringConnection) || ($.eventName = DeleteVpcPeeringConnection) || ($.eventName = RejectVpcPeeringConnection) || ($.eventName = AttachClassicLinkVpc) || ($.eventName = DetachClassicLinkVpc) || ($.eventName = DisableVpcClassicLink) || ($.eventName = EnableVpcClassicLink) }'
+          metricNamespace: LogMetrics
+          metricName: VpcChanges
+          metricValue: "1"
+  alarmSets:
+    - regions:
+        - <HomeRegion>
+      deploymentTargets:
+        accounts:
+          - Management
+      alarms:
+        # --- SecurityHigh: identity / audit / key / org events ---
+        - { alarmName: CIS-4.3-RootAccountUsage,         alarmDescription: "CIS 4.3 - root account usage",            snsTopicName: SecurityHigh,   metricName: RootAccountUsage,        namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.1-UnauthorizedApiCalls,      alarmDescription: "CIS 4.1 - unauthorized API calls",        snsTopicName: SecurityHigh,   metricName: UnauthorizedApiCalls,    namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.2-ConsoleSigninWithoutMfa,   alarmDescription: "CIS 4.2 - console sign-in without MFA",    snsTopicName: SecurityHigh,   metricName: ConsoleSigninWithoutMfa, namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.6-ConsoleAuthFailures,       alarmDescription: "CIS 4.6 - console auth failures",         snsTopicName: SecurityHigh,   metricName: ConsoleAuthFailures,     namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.4-IamPolicyChanges,          alarmDescription: "CIS 4.4 - IAM policy changes",            snsTopicName: SecurityHigh,   metricName: IamPolicyChanges,        namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.5-CloudTrailConfigChanges,   alarmDescription: "CIS 4.5 - CloudTrail config changes",      snsTopicName: SecurityHigh,   metricName: CloudTrailConfigChanges, namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.7-CmkDisableOrDelete,        alarmDescription: "CIS 4.7 - CMK disable/scheduled delete",   snsTopicName: SecurityHigh,   metricName: CmkDisableOrDelete,      namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.8-S3BucketPolicyChanges,     alarmDescription: "CIS 4.8 - S3 bucket policy changes",       snsTopicName: SecurityHigh,   metricName: S3BucketPolicyChanges,   namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.9-AwsConfigChanges,          alarmDescription: "CIS 4.9 - AWS Config changes",             snsTopicName: SecurityHigh,   metricName: AwsConfigChanges,        namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.15-OrganizationsChanges,     alarmDescription: "CIS 4.15 - AWS Organizations changes",     snsTopicName: SecurityHigh,   metricName: OrganizationsChanges,    namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        # --- SecurityMedium: network-resource change events ---
+        - { alarmName: CIS-4.10-SecurityGroupChanges,     alarmDescription: "CIS 4.10 - security group changes",        snsTopicName: SecurityMedium, metricName: SecurityGroupChanges,    namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.11-NetworkAclChanges,        alarmDescription: "CIS 4.11 - network ACL changes",          snsTopicName: SecurityMedium, metricName: NetworkAclChanges,       namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.12-NetworkGatewayChanges,    alarmDescription: "CIS 4.12 - network gateway changes",      snsTopicName: SecurityMedium, metricName: NetworkGatewayChanges,   namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.13-RouteTableChanges,        alarmDescription: "CIS 4.13 - route table changes",          snsTopicName: SecurityMedium, metricName: RouteTableChanges,       namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }
+        - { alarmName: CIS-4.14-VpcChanges,               alarmDescription: "CIS 4.14 - VPC changes",                  snsTopicName: SecurityMedium, metricName: VpcChanges,              namespace: LogMetrics, comparisonOperator: GreaterThanOrEqualToThreshold, period: 300, threshold: 1, statistic: Sum, treatMissingData: notBreaching, evaluationPeriods: 1 }

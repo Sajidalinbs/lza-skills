@@ -1,0 +1,24 @@
+# Copy to terraform.tfvars and set for your engagement. Values below are placeholders
+# ("acme" stands in for your AcceleratorPrefix) — replace them all.
+region            = "us-east-1"
+prefix            = "acme"
+
+# Profiles for the two accounts. Easiest: assume-role profiles in ~/.aws/config
+# that source your mgmt profile, e.g.:
+#   [profile acme-perimeter]
+#   source_profile = acme-mgmt
+#   role_arn       = arn:aws:iam::<PERIMETER_ACCT>:role/AWSControlTowerExecution
+#   region         = us-east-1
+#   [profile acme-stg]
+#   source_profile = acme-mgmt
+#   role_arn       = arn:aws:iam::<WORKLOAD_ACCT>:role/AWSControlTowerExecution
+#   region         = us-east-1
+perimeter_profile = "acme-perimeter"
+staging_profile   = "acme-stg"
+
+# Resource-name lookups — confirm against the deployed landing zone.
+# ingress_vpc_name defaults to "PREFIX-ingress" (PREFIX -> prefix); override if needed.
+workload_vpc_name               = "acme-staging"
+workload_lb_subnet_pattern      = "subnet-staging-loadbalancer-*"
+workload_private_subnet_pattern = "subnet-staging-private-*"
+# ingress_public_subnet_pattern defaults to "subnet-ingress-public-*"

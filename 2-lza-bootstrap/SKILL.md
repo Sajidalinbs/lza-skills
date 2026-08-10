@@ -209,6 +209,7 @@ CT landing zone: created-standalone | pre-existing-adopted | deployed-by-lza | n
   - *Clean, no custom permission sets* → let CT adopt it.
   - *Active users / custom permission sets in non-CT regions* → **inventory permission sets + account assignments first**; you may need to recreate them after CT setup.
   - If a rebuild is needed, **disable IDC trusted access deliberately and in the right order** — this is exactly where a prior engagement broke. See `/lza-troubleshoot` for the trusted-services sequence.
+- ⚠️ **Deleting a pre-existing IDC instance can break the next CT landing-zone setup (`AWSServiceRoleForSSO` race).** If Step 2 found an empty/account-level IDC instance and you delete it so CT can create the org instance, deletion may also remove the `AWSServiceRoleForSSO` service-linked role. When CT then sets up the landing zone it re-creates that SLR *and uses it within a few minutes* — IAM hasn't propagated it yet, so the landing-zone CREATE fails with: *"the assumed role, AWSServiceRoleForSSO, doesn't have permission to perform the operation 'unknown operation'."* The landing zone lands in **FAILED**. **Mitigations:** after deleting the old IDC instance, **pre-create the SLR** (`aws iam create-service-linked-role --aws-service-name sso.amazonaws.com`) and give it a few minutes before the pipeline runs CT setup; if the landing zone already failed this way, the SLR now exists — **`reset-landing-zone` and it succeeds** (see `/lza-troubleshoot` → "CT landing zone AWSServiceRoleForSSO race"). The failure is a one-time eventual-consistency race, not a config error.
 
 **Do this with the break-glass path (Step 3) confirmed working** — an IDC misstep here can lock out SSO logins.
 
@@ -301,7 +302,7 @@ Map each parameter from the plan:
 
 | Parameter | Value |
 |---|---|
-| `AcceleratorPrefix` | Decision 1 prefix |
+| `AcceleratorPrefix` | Decision 1 prefix — **must be byte-for-byte identical to `replacements-config.yaml`'s `AcceleratorPrefix`** (see below) |
 | `ManagementAccountEmail` / `LogArchiveAccountEmail` / `AuditAccountEmail` | Decision 4 emails |
 | `ControlTowerEnabled` | `Yes`/`No` from Step 7 |
 | `ConfigurationRepositoryLocation` | `codeconnection`/`s3` from Step 9 |
@@ -311,6 +312,8 @@ Map each parameter from the plan:
 | `EnableApprovalStage` | `Yes` (manual gate before Deploy — recommended) |
 | `ApprovalStageNotifyEmailList` | engineer/customer notification emails |
 | `AcceleratorQualifier` | only for multiple LZA instances in one account (rare) |
+
+> 🚨 **Prefix must match the config — the #1 silent-mismatch trap.** The `AcceleratorPrefix` you enter here is the **same** prefix `/lza-configure` puts in `replacements-config.yaml` (`{{ AcceleratorPrefix }}`). They are two halves of one setting: the installer/pipeline builds and looks up resources under this name, and the config names resources under the config value. If they differ (e.g. installer left at default `AWSAccelerator` but config set to `acme`, or a typo/case difference), the pipeline references names that don't exist and fails. **Enter the exact same string in both places.** Both lock after the first run. (The prefix names LZA-managed *infra* — roles, KMS keys, S3 buckets, CFN stacks, SCPs, SNS, Lambdas. It does **not** rename VPC/subnet `name:` tags, and the CDK qualifier `cdk-accel-*` is independent of it.) If you choose a non-default prefix, also have `/lza-configure` replace the baseline's hardcoded `"AWSAccelerator"` in the `security-config.yaml` Security Hub suppression rules with `{{ AcceleratorPrefix }}`, or those suppressions won't match.
 
 **Watch for:** the stack creates **two pipelines** — `AWSAccelerator-Installer` (builds the toolkit), which then triggers `AWSAccelerator-Pipeline` (the real one). Email/prefix typos here are as irreversible as in the plan — re-read before "Create stack."
 

@@ -26,3 +26,8 @@ requirements.*.yaml
 intake/accounts-config.yaml
 intake/organization-config.yaml
 intake/network-config.snippet.yaml
+
+# Rendered / filled customer documents (the blank intake-form template IS committed)
+*.docx
+!intake/lza-intake-form.md
+*-lza-plan.md

@@ -27,7 +27,32 @@ The output of this skill is a **planning document** (`<customer>-lza-plan.md` �
 
 ## How to use this skill
 
-When the user invokes `/lza-plan`, walk them through the 8 decisions below **in order**. For each one:
+This skill operates in one of **two modes**. Pick based on whether a filled intake document already exists — **Mode A is the real-world default.**
+
+### Mode A — Intake-document-first (the normal flow) ⭐
+
+You usually **cannot** run an 8-question interview live in front of the customer: they won't have root emails, CIDR ranges, IdP details, or compliance scope at their fingertips, and these are exactly the irreversible decisions you must not guess. So the normal engagement flow is **share a form first, ingest it later**:
+
+1. **Before the session,** send the customer the **intake & requirements document** to complete at their own pace. It ships with these skills at [`intake/lza-intake-form.md`](../intake/lza-intake-form.md) — 16 sections covering contacts + break-glass, **email distribution** (management root email, alias base + plus-addressing test, per-account root emails, security/billing/ops notification lists and who confirms the SNS subscriptions), current AWS state, regions, prefix, OU tree, account inventory, **on-prem/VPN/DX CIDR confirmation** (complete-list table + a signed confirmation + approval of the proposed supernet), DNS/egress/ingress, SSO/IdP, config repo + connection, compliance, tagging/cost, logging/encryption/backup, timeline, and sign-off. Render it as Word for the customer:
+
+   ```bash
+   python3 intake/make_docx.py intake/lza-intake-form.md --customer "<Customer>"
+   # → <Customer>_AWS_LZA_Intake.docx   (stdlib only — no python-docx/pandoc needed)
+   ```
+
+   In parallel, pre-fill the **account + network/IP design** (OU tree, account list, VPC/subnet/CIDR layout) using Decision 5's tooling and ship it alongside as a design spreadsheet for the customer to approve. The form is the customer's homework; the spreadsheet is our proposed design.
+2. **When the customer returns the filled documents,** invoke `/lza-plan` pointed at them. The skill's job is now to **ingest and reconcile**, not to interview:
+   - **Parse every provided artifact.** `.docx` → unzip and read `word/document.xml`, replace `</w:p>`/`</w:tc>` with newlines/separators, strip tags, unescape entities. `.xlsx` → `openpyxl` (`data_only=True`), iterate rows per sheet. Do **not** ask for any value the documents already contain.
+   - **Reconcile sources against each other.** When two documents disagree on an **irreversible** field (HomeRegion, AcceleratorPrefix, CIDR base, account root emails), **STOP and surface the conflict — never silently pick one.** Ask the customer/engineer which is authoritative, then record the resolution in an **Open items & discrepancies** table in the plan. *(Field-tested example: an intake form gave HomeRegion `us-east-2` while the design spreadsheet was built entirely in `eu-central-1` — a full-rebuild-if-wrong conflict only a human can resolve. CIDRs are region-agnostic, so the IP design survived once the region was confirmed and the spreadsheet's region label was corrected.)*
+   - **Validate the handed-over network design.** Confirm every subnet sits inside its VPC CIDR, and that there are no VPC-vs-VPC or subnet-vs-subnet overlaps (a quick `ipaddress` pass over the spreadsheet). Cross-check against the customer's on-prem CIDR list. Treat any blank-but-critical field (e.g. on-prem CIDRs left empty) as an **Open item**, not as "none."
+   - Map the ingested answers onto the 8 decisions below, then write the plan.
+3. Ask the customer **only** the questions still genuinely open after ingestion + reconciliation — typically the FOLLOW-UP items they left blank.
+
+> **Keep the intake form and this skill in sync.** [`intake/lza-intake-form.md`](../intake/lza-intake-form.md) and the 8 decisions here are two views of the same questionnaire — when you add or change a decision, update the form too, and vice-versa. (Its §16 mapping table shows which form section feeds which decision.) A question that lives only in the skill (asked live) but not in the form will routinely arrive at the session unanswered.
+
+### Mode B — Live walk-through (fallback / greenfield scoping)
+
+When no intake document exists yet (an early scoping call, an internal demo), walk the customer through the 8 decisions below **in order**. For each one:
 
 1. State the decision being made.
 2. Explain what it controls and what's reversible vs irreversible.
@@ -39,7 +64,7 @@ Don't move to the next decision until the current one is answered and recorded.
 
 > **Be opinionated — make it easy to say yes.** The customer should mostly be *approving* a recommended design, not architecting from scratch. For each decision, present the default as "here's what we recommend — anything you need different?" Only open up the full design space when the customer has a real constraint (on-prem CIDR overlap, compliance scope, branding). This is fastest for the customer and produces the cleanest, most supportable landing zone. The network decision (Decision 5) is the clearest example: propose a full VPC/subnet/CIDR layout and let the customer approve it after a single on-prem overlap check.
 
-When all 8 are recorded, write the planning document to `<customer>-lza-plan.md` in the customer's repo root.
+**Both modes** end the same way: when all 8 decisions are recorded, write the planning document to `<customer>-lza-plan.md` in the customer's repo root — including the **Open items & discrepancies** table from any reconciliation.
 
 ### Setup — auto-provision the intake tooling (run this FIRST, automatically)
 
@@ -452,12 +477,24 @@ When all 8 decisions are complete, write a single planning document at the custo
 - Tag policy: ...
 - Cost allocation tags: ...
 
+## Open items & discrepancies
+<table: # | Item | Status / action — one row per unresolved field or per conflict found while
+ reconciling the intake form against the design spreadsheet. Mark each Resolved / FOLLOW-UP.
+ Close the irreversible ones (region, prefix, CIDR base, emails) before /lza-bootstrap sign-off.>
+
 ## Approvals
 - Customer sign-off: <date, name>
 - NBS sign-off: <date, name>
 ```
 
 **Get customer sign-off on this document before proceeding to `/lza-bootstrap`.** Trying to relitigate these decisions during deployment is the single biggest source of project delay.
+
+If the customer wants the plan as a Word document to sign, render it with the same generator used for the intake form:
+
+```bash
+python3 intake/make_docx.py <customer>-lza-plan.md --customer "<Customer>"
+# → <Customer>_AWS_LZA_Plan.docx
+```
 
 ---
 
